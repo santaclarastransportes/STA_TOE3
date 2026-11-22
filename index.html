@@ -501,46 +501,50 @@ const TOE_CITIES={
  'airolo':[248,423],'milano':[349,406]
 };
 const TOE_ROADS={
- // Ramal norte-oeste e ligação a Frankfurt
- n1:[75,155],n2:[95,115],n3:[125,82],n4:[160,103],n5:[180,75],n6:[213,35],
- // Frankfurt -> corredor norte -> Nuremberg -> Prague
- f1:[280,36],f2:[285,75],f3:[330,67],f4:[378,55],f5:[389,102],f6:[420,91],f7:[470,60],f8:[510,50],f9:[545,30],
- // corredor sul de Nancy -> Zurich
- w1:[60,170],w2:[110,205],w3:[150,230],w4:[150,265],w5:[150,300],w6:[215,305],w7:[220,315],
- // diagonal Frankfurt -> Tubingen / centro-oeste
- d1:[260,85],d2:[285,130],d3:[310,175],d4:[320,190],d5:[300,205],d6:[280,220],
- // Stuttgart, Tubingen e Quarry
- st1:[230,110],st2:[260,110],tu1:[275,175],tu2:[265,190],q1:[245,220],q2:[270,230],
- // entroncamento central e Munich
- c1:[330,220],c2:[350,235],c3:[385,230],c4:[430,220],c5:[500,200],c6:[545,205],
- // Nuremberg -> Munich
- n7:[390,110],n8:[410,150],n9:[425,195],
- // Munich -> Lech -> corredor sul / Milano
- s1:[390,245],s2:[400,285],s3:[410,325],s4:[435,340],s5:[460,335],s6:[445,365],s7:[425,375],s8:[390,390],s9:[350,405],
- // Zurich -> Tremola -> Airolo
- z1:[220,320],z2:[205,345],z3:[205,370],z4:[205,395],z5:[215,415],z6:[230,432],
- // ligação Zurich ao entroncamento central
- z7:[250,290],z8:[275,275],z9:[285,245],z10:[300,230],
- // Linz e laço leste
- l1:[585,180],l2:[585,145],l3:[590,105],l4:[585,65],l5:[575,45],l6:[610,75],l7:[610,150],l8:[610,190],l9:[605,220]
+ // Pontos de apoio traçados sobre o centro das estradas da imagem (viewBox 678 x 452).
+ // Corredor oeste/norte
+ nw1:[74,155],nw2:[92,118],nw3:[125,82],nw4:[158,101],nw5:[178,75],nw6:[214,39],
+ nf1:[280,36],nf2:[285,72],nf3:[330,65],nf4:[378,56],nf5:[389,100],nf6:[420,91],nf7:[470,60],nf8:[510,50],nf9:[548,31],
+ // Nancy - Zurich
+ ws1:[60,170],ws2:[105,198],ws3:[145,222],ws4:[151,260],ws5:[151,292],ws6:[190,298],ws7:[214,301],
+ // Frankfurt - eixo diagonal e Stuttgart/Tubingen/Quarry
+ fd1:[258,80],fd2:[278,115],fd3:[297,151],fd4:[313,184],fd5:[326,202],fd6:[340,220],
+ st1:[232,124],st2:[253,124],
+ tu1:[282,181],tu2:[293,190],tu3:[308,184],
+ q1:[258,211],q2:[274,220],q3:[294,218],
+ // Ligação central e corredor Munich-Linz
+ ce1:[352,225],ce2:[371,219],ce3:[392,214],ce4:[420,207],ce5:[450,200],ce6:[480,195],ce7:[510,195],ce8:[540,202],ce9:[570,208],
+ // Nuremberg e ligação a Munich
+ nu1:[390,112],nu2:[405,150],nu3:[417,185],nu4:[425,202],
+ // Munich - Milano (estrada sul, fiel ao traçado)
+ ms1:[392,229],ms2:[399,252],ms3:[407,276],ms4:[414,300],ms5:[421,323],ms6:[432,344],
+ ms7:[428,359],ms8:[414,370],ms9:[392,382],ms10:[370,394],ms11:[351,405],
+ // Ramal Lech
+ le1:[400,246],le2:[409,270],le3:[414,294],le4:[420,318],le5:[435,331],le6:[450,326],
+ // Zurich - eixo central
+ z1:[220,316],z2:[207,341],z3:[205,367],z4:[216,391],z5:[229,414],z6:[240,429],
+ z7:[245,288],z8:[272,272],z9:[282,249],z10:[300,235],z11:[322,224],
+ // Tremola/Airolo
+ tr1:[239,373],tr2:[238,390],tr3:[242,407],tr4:[247,421],
+ // Linz - ramal norte/Prague
+ ln1:[590,185],ln2:[587,150],ln3:[590,110],ln4:[586,70],ln5:[575,45],ln6:[610,75],ln7:[610,150],ln8:[610,190]
 };
-// Cada aresta contém os pontos intermediários da estrada, não uma reta entre cidades.
 const TOE_ROAD_EDGES=[
- ['nancy','n1'],['n1','n2'],['n2','n3'],['n3','n4'],['n4','n5'],['n5','n6'],['n6','frankfurt'],
- ['frankfurt','f1'],['f1','f2'],['f2','f3'],['f3','f4'],['f4','f5'],['f5','f6'],['f6','f7'],['f7','f8'],['f8','f9'],['f9','prague'],
- ['nancy','w1'],['w1','w2'],['w2','w3'],['w3','w4'],['w4','w5'],['w5','w6'],['w6','zurich'],
- ['frankfurt','d1'],['d1','d2'],['d2','d3'],['d3','d4'],['d4','c1'],
- ['d1','st1'],['st1','stuttgart'],['st1','st2'],['st2','d2'],
- ['d3','tu1'],['tu1','tubingen'],['tubingen','tu2'],['tu2','d4'],
- ['tu2','q1'],['q1','quarry'],['quarry','q2'],['q2','d5'],['d5','d4'],
- ['d4','d5'],['d5','d6'],['d6','z9'],['z9','z8'],['z8','z7'],['z7','zurich'],
- ['d4','c1'],['c1','c2'],['c2','c3'],['c3','munich'],['munich','c4'],['c4','c5'],['c5','c6'],['c6','linz'],
- ['nuremberg','n7'],['n7','f5'],['n7','n8'],['n8','n9'],['n9','munich'],
- ['munich','s1'],['s1','s2'],['s2','s3'],['s3','s4'],['s4','s5'],['s5','s6'],['s6','s7'],['s7','s8'],['s8','s9'],['s9','milano'],
- ['s4','lech'],
+ ['nancy','nw1'],['nw1','nw2'],['nw2','nw3'],['nw3','nw4'],['nw4','nw5'],['nw5','nw6'],['nw6','frankfurt'],
+ ['frankfurt','nf1'],['nf1','nf2'],['nf2','nf3'],['nf3','nf4'],['nf4','nf5'],['nf5','nf6'],['nf6','nf7'],['nf7','nf8'],['nf8','nf9'],['nf9','prague'],
+ ['nancy','ws1'],['ws1','ws2'],['ws2','ws3'],['ws3','ws4'],['ws4','ws5'],['ws5','ws6'],['ws6','zurich'],
+ ['frankfurt','fd1'],['fd1','fd2'],['fd2','fd3'],['fd3','fd4'],['fd4','fd5'],['fd5','fd6'],
+ ['fd1','st1'],['st1','stuttgart'],['st1','st2'],['st2','fd2'],
+ ['fd4','tu1'],['tu1','tubingen'],['tubingen','tu2'],['tu2','tu3'],['tu3','fd5'],
+ ['tu2','q1'],['q1','quarry'],['quarry','q2'],['q2','q3'],['q3','fd5'],
+ ['fd5','fd6'],['fd6','ce1'],['ce1','ce2'],['ce2','ce3'],['ce3','munich'],['munich','ce4'],['ce4','ce5'],['ce5','ce6'],['ce6','ce7'],['ce7','ce8'],['ce8','ce9'],['ce9','linz'],
+ ['nuremberg','nu1'],['nu1','nf5'],['nu1','nu2'],['nu2','nu3'],['nu3','nu4'],['nu4','ce3'],
+ ['munich','ms1'],['ms1','ms2'],['ms2','ms3'],['ms3','ms4'],['ms4','ms5'],['ms5','ms6'],['ms6','ms7'],['ms7','ms8'],['ms8','ms9'],['ms9','ms10'],['ms10','milano'],
+ ['ms2','le1'],['le1','le2'],['le2','le3'],['le3','le4'],['le4','le5'],['le5','lech'],['le5','le6'],
  ['zurich','z1'],['z1','z2'],['z2','z3'],['z3','z4'],['z4','z5'],['z5','z6'],['z6','airolo'],
- ['z3','tremola'],['tremola','z4'],
- ['linz','l1'],['l1','l2'],['l2','l3'],['l3','l4'],['l4','l5'],['l5','prague'],['l5','l6'],['l6','l7'],['l7','l8'],['l8','l9'],['l9','linz']
+ ['z3','tremola'],['tremola','tr1'],['tr1','tr2'],['tr2','tr3'],['tr3','tr4'],['tr4','airolo'],
+ ['zurich','z7'],['z7','z8'],['z8','z9'],['z9','z10'],['z10','z11'],['z11','ce1'],
+ ['linz','ln1'],['ln1','ln2'],['ln2','ln3'],['ln3','ln4'],['ln4','ln5'],['ln5','prague'],['ln5','ln6'],['ln6','ln7'],['ln7','ln8'],['ln8','linz']
 ];
 function toePoint(id){return TOE_CITIES[id]||TOE_ROADS[id]||null;}
 function toeRoadPath(from,to){
