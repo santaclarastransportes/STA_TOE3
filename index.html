@@ -492,13 +492,65 @@ if(cfgOK()){
 function uid(){return cloudUser?.uid||null;}
 function isAdmin(){return cloudProfile?.role==='admin';}
 function fileData(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file);});}
-// Coordenadas aproximadas dos centros das cidades no mapa original (678 x 452).
+// Rede viária do mapa TOE3: cada ligação segue o traçado visível das estradas.
+// Coordenadas no sistema original do mapa (678 x 452), independentes do tamanho da tela.
 const TOE_CITIES={
- 'nancy':[52,132],'frankfurt':[239,35],'prague':[577,25],'stuttgart':[207,110],
- 'nuremberg':[354,110],'tubingen':[253,165],'quarry':[258,215],'munich':[384,207],
- 'zurich':[222,292],'lech':[435,259],'linz':[590,211],'tremola':[205,386],
- 'airolo':[245,432],'milano':[347,406]
+ 'nancy':[52,132],'frankfurt':[239,35],'prague':[584,28],'stuttgart':[219,124],
+ 'nuremberg':[362,98],'tubingen':[274,182],'quarry':[259,201],'munich':[384,207],
+ 'zurich':[219,299],'lech':[435,259],'linz':[590,211],'tremola':[240,390],
+ 'airolo':[248,423],'milano':[349,406]
 };
+const TOE_ROADS={
+ // Ramal norte-oeste e ligação a Frankfurt
+ n1:[75,155],n2:[95,115],n3:[125,82],n4:[160,103],n5:[180,75],n6:[213,35],
+ // Frankfurt -> corredor norte -> Nuremberg -> Prague
+ f1:[280,36],f2:[285,75],f3:[330,67],f4:[378,55],f5:[389,102],f6:[420,91],f7:[470,60],f8:[510,50],f9:[545,30],
+ // corredor sul de Nancy -> Zurich
+ w1:[60,170],w2:[110,205],w3:[150,230],w4:[150,265],w5:[150,300],w6:[215,305],w7:[220,315],
+ // diagonal Frankfurt -> Tubingen / centro-oeste
+ d1:[260,85],d2:[285,130],d3:[310,175],d4:[320,190],d5:[300,205],d6:[280,220],
+ // Stuttgart, Tubingen e Quarry
+ st1:[230,110],st2:[260,110],tu1:[275,175],tu2:[265,190],q1:[245,220],q2:[270,230],
+ // entroncamento central e Munich
+ c1:[330,220],c2:[350,235],c3:[385,230],c4:[430,220],c5:[500,200],c6:[545,205],
+ // Nuremberg -> Munich
+ n7:[390,110],n8:[410,150],n9:[425,195],
+ // Munich -> Lech -> corredor sul / Milano
+ s1:[390,245],s2:[400,285],s3:[410,325],s4:[435,340],s5:[460,335],s6:[445,365],s7:[425,375],s8:[390,390],s9:[350,405],
+ // Zurich -> Tremola -> Airolo
+ z1:[220,320],z2:[205,345],z3:[205,370],z4:[205,395],z5:[215,415],z6:[230,432],
+ // ligação Zurich ao entroncamento central
+ z7:[250,290],z8:[275,275],z9:[285,245],z10:[300,230],
+ // Linz e laço leste
+ l1:[585,180],l2:[585,145],l3:[590,105],l4:[585,65],l5:[575,45],l6:[610,75],l7:[610,150],l8:[610,190],l9:[605,220]
+};
+// Cada aresta contém os pontos intermediários da estrada, não uma reta entre cidades.
+const TOE_ROAD_EDGES=[
+ ['nancy','n1'],['n1','n2'],['n2','n3'],['n3','n4'],['n4','n5'],['n5','n6'],['n6','frankfurt'],
+ ['frankfurt','f1'],['f1','f2'],['f2','f3'],['f3','f4'],['f4','f5'],['f5','f6'],['f6','f7'],['f7','f8'],['f8','f9'],['f9','prague'],
+ ['nancy','w1'],['w1','w2'],['w2','w3'],['w3','w4'],['w4','w5'],['w5','w6'],['w6','zurich'],
+ ['frankfurt','d1'],['d1','d2'],['d2','d3'],['d3','d4'],['d4','c1'],
+ ['d1','st1'],['st1','stuttgart'],['st1','st2'],['st2','d2'],
+ ['d3','tu1'],['tu1','tubingen'],['tubingen','tu2'],['tu2','d4'],
+ ['tu2','q1'],['q1','quarry'],['quarry','q2'],['q2','d5'],['d5','d4'],
+ ['d4','d5'],['d5','d6'],['d6','z9'],['z9','z8'],['z8','z7'],['z7','zurich'],
+ ['d4','c1'],['c1','c2'],['c2','c3'],['c3','munich'],['munich','c4'],['c4','c5'],['c5','c6'],['c6','linz'],
+ ['nuremberg','n7'],['n7','f5'],['n7','n8'],['n8','n9'],['n9','munich'],
+ ['munich','s1'],['s1','s2'],['s2','s3'],['s3','s4'],['s4','s5'],['s5','s6'],['s6','s7'],['s7','s8'],['s8','s9'],['s9','milano'],
+ ['s4','lech'],
+ ['zurich','z1'],['z1','z2'],['z2','z3'],['z3','z4'],['z4','z5'],['z5','z6'],['z6','airolo'],
+ ['z3','tremola'],['tremola','z4'],
+ ['linz','l1'],['l1','l2'],['l2','l3'],['l3','l4'],['l4','l5'],['l5','prague'],['l5','l6'],['l6','l7'],['l7','l8'],['l8','l9'],['l9','linz']
+];
+function toePoint(id){return TOE_CITIES[id]||TOE_ROADS[id]||null;}
+function toeRoadPath(from,to){
+ if(!from||!to)return null;if(from===to)return [toePoint(from)];
+ const graph={};const add=(a,b)=>{const pa=toePoint(a),pb=toePoint(b);if(!pa||!pb)return;const w=Math.hypot(pb[0]-pa[0],pb[1]-pa[1]);(graph[a]??=[]).push({to:b,w});(graph[b]??=[]).push({to:a,w});};
+ TOE_ROAD_EDGES.forEach(e=>add(e[0],e[1]));
+ const dist={[from]:0},prev={},open=new Set(Object.keys(graph));
+ while(open.size){let u=null,best=Infinity;for(const n of open){const d=dist[n]??Infinity;if(d<best){best=d;u=n;}}if(u===null||best===Infinity)break;open.delete(u);if(u===to)break;for(const e of graph[u]||[]){const nd=best+e.w;if(nd<(dist[e.to]??Infinity)){dist[e.to]=nd;prev[e.to]=u;}}}
+ if(dist[to]===undefined)return null;const ids=[to];while(ids[0]!==from){const n=prev[ids[0]];if(!n)return null;ids.unshift(n);}return ids.map(toePoint);
+}
 function toeNorm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z]/g,'');}
 function toeCity(value){const n=toeNorm(value);return Object.keys(TOE_CITIES).find(k=>n.includes(toeNorm(k))||toeNorm(k).includes(n)&&n.length>3)||null;}
 function toeEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -519,7 +571,7 @@ async function refreshToeMap(){
   active.forEach((t,i)=>{
    const origin=t.origem||t.origin||'',dest=t.destino||t.destination||'';
    const a=toeCity(origin),b=toeCity(dest);let route='';
-   if(a&&b){const [x1,y1]=TOE_CITIES[a],[x2,y2]=TOE_CITIES[b];route=`<path class="toe-route" d="M ${x1} ${y1} L ${x2} ${y2}"/>`;markers.push(`<circle class="toe-marker" cx="${x1}" cy="${y1}" r="6" fill="#35c66b"/><circle cx="${x1}" cy="${y1}" r="10" fill="none" stroke="#35c66b" stroke-opacity=".65" stroke-width="2"/>`);}
+   if(a&&b){const road=toeRoadPath(a,b);if(road&&road.length>1){const d=road.map((pt,j)=>(j?'L':'M')+' '+pt[0]+' '+pt[1]).join(' ');route=`<path class="toe-route" d="${d}"/>`;}const [x1,y1]=TOE_CITIES[a],[x2,y2]=TOE_CITIES[b];markers.push(`<circle class="toe-marker" cx="${x1}" cy="${y1}" r="6" fill="#35c66b"/><circle cx="${x1}" cy="${y1}" r="10" fill="none" stroke="#35c66b" stroke-opacity=".65" stroke-width="2"/><circle class="toe-marker" cx="${x2}" cy="${y2}" r="5" fill="#f4c75e"/>`);}
    else if(a){const [x,y]=TOE_CITIES[a];markers.push(`<circle class="toe-marker" cx="${x}" cy="${y}" r="6" fill="#35c66b"/>`);}
    paths.push(route);
    cards.push(`<div class="map-trip"><strong>${toeEsc(origin||'Origem não informada')} → ${toeEsc(dest||'Destino não informado')}</strong><small>Motorista: ${toeEsc(t.motoristaNome||t.driver||'Motorista')} · ${toeEsc(t.tipoCarga||t.type||'Carga')}</small>${(!a||!b)?'<small style="display:block;color:#e5c778;margin-top:4px">Cidade não reconhecida no mapa; confira a grafia registrada.</small>':''}</div>`);
