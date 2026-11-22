@@ -974,7 +974,7 @@ document.querySelector('.topbar').style.cssText+=';flex-wrap:wrap;align-items:fl
 logoutBtn.onclick=async()=>{try{await fbAuth.signOut();}catch(e){alert('Não foi possível sair: '+e.message);}};
 // Abertura com animação de 10 segundos antes de liberar o login.
 gateReady=true;document.getElementById('gateLoading').style.display='none';document.getElementById('gateLogin').style.display='block';
-if(cloudReady)fbAuth.onAuthStateChanged(async user=>{cloudUser=user;cloudProfile=null;if(!user){renderDriverProfile(null,null);document.body.classList.remove('loggedin');document.getElementById('gateLogin').style.display=gateReady?'block':'none';document.getElementById('logoutBtn').style.display='none';authMsg('Faça login para carregar as viagens salvas na nuvem.');trips=[];credits=[];balance=0;refreshTrips();refreshBank();renderAdminQueue();renderStore();refreshToeMap();refreshWheel();loadWheelHistory();return;}try{const doc=await fbDb.collection('usuarios').doc(user.uid).get();if(!doc.exists){await fbAuth.signOut();return authMsg('Perfil não encontrado na coleção usuarios.');}cloudProfile=doc.data();renderDriverProfile(cloudProfile,user);refreshWheel();loadWheelHistory();if(cloudProfile.status==='rejeitado'||cloudProfile.role==='rejeitado'){gateMessage('Seu cadastro foi recusado. Entre em contato com um administrador.');await fbAuth.signOut();return;}if(cloudProfile.status==='bloqueado'){gateMessage('Sua conta está bloqueada.');await fbAuth.signOut();return;}if(gateReady)document.body.classList.add('loggedin');document.getElementById('logoutBtn').style.display='inline-block';document.querySelector('[data-page="admin"]').style.display='';authMsg('Conectado: '+(cloudProfile.nome||user.email)+' · '+cloudProfile.role,'good');await loadCloud();renderAdminQueue();renderStore();refreshWheel();loadWheelHistory();if(isAdmin()){renderAdminStoreItems();renderWheelAdmin();}}catch(e){authMsg('Falha ao carregar perfil: '+e.message,'bad');}});
+if(cloudReady)fbAuth.onAuthStateChanged(async user=>{cloudUser=user;cloudProfile=null;if(!user){renderDriverProfile(null,null);document.body.classList.remove('loggedin');document.getElementById('gateLogin').style.display=gateReady?'block':'none';document.getElementById('logoutBtn').style.display='none';authMsg('Faça login para carregar as viagens salvas na nuvem.');trips=[];credits=[];balance=0;refreshTrips();refreshBank();renderAdminQueue();renderStore();refreshToeMap();refreshWheel();loadWheelHistory();return;}try{const doc=await fbDb.collection('usuarios').doc(user.uid).get();if(!doc.exists){await fbAuth.signOut();return authMsg('Perfil não encontrado na coleção usuarios.');}cloudProfile=doc.data();renderDriverProfile(cloudProfile,user);if(cloudProfile.status==='rejeitado'||cloudProfile.role==='rejeitado'){gateMessage('Seu cadastro foi recusado. Entre em contato com um administrador.');await fbAuth.signOut();return;}if(cloudProfile.status==='bloqueado'){gateMessage('Sua conta está bloqueada.');await fbAuth.signOut();return;}if(gateReady)document.body.classList.add('loggedin');document.getElementById('logoutBtn').style.display='inline-block';document.querySelector('[data-page="admin"]').style.display='';authMsg('Conectado: '+(cloudProfile.nome||user.email)+' · '+cloudProfile.role,'good');await loadCloud();renderAdminQueue();renderStore();refreshWheel();loadWheelHistory();if(isAdmin()){renderAdminStoreItems();renderWheelAdmin();}}catch(e){authMsg('Falha ao carregar perfil: '+e.message,'bad');}});
 renderStore();refreshWheel();
 // Oculta fila e protege entrada na página administrativa em cliente.
 const navAdmin=document.querySelector('[data-page="admin"]');navAdmin.style.display='';
@@ -989,7 +989,70 @@ function wheelWeightedPick(list){const active=list.filter(p=>p.ativo!==false&&Nu
 async function getWheelPrizes(){const snap=await fbDb.collection('roletaPremios').get();wheelPrizesCache=snap.docs.map(d=>({id:d.id,...d.data()}));return wheelPrizesCache;}
 function paintWheel(){const el=document.getElementById('prizeWheel');if(!el)return;const names=wheelPrizesCache.filter(p=>p.ativo!==false);if(!names.length){el.style.background='conic-gradient(#17643d,#c69b35,#214b32,#98732a)';return;}const colors=['#17643d','#c69b35','#214b32','#98732a','#2b6845','#a88432'];const step=360/names.length;el.style.background='conic-gradient('+names.map((p,i)=>`${colors[i%colors.length]} ${i*step}deg ${(i+1)*step}deg`).join(',')+')';}
 async function refreshWheel(){const bal=document.getElementById('wheelBalance');if(bal)bal.textContent=cloudProfile?Math.max(0,Number(cloudProfile.stacoins||0)).toLocaleString('pt-BR')+' STACOINS':'— STACOINS';const free=document.getElementById('freeWheelBtn'),paid=document.getElementById('paidWheelBtn');if(!cloudUser||!cloudProfile){if(free)free.disabled=true;if(paid)paid.disabled=true;wheelMsg('Faça login para participar da roleta.');return;}const used=cloudProfile.roletaGratisData===brazilDateKey();if(free){free.disabled=used;free.textContent=used?'Giro grátis já utilizado hoje':'Girar grátis do dia';}if(paid){paid.disabled=false;paid.textContent='Giro extra · '+WHEEL_EXTRA_COST+' STACOINS';}try{await getWheelPrizes();paintWheel();if(!wheelPrizesCache.some(p=>p.ativo!==false))wheelMsg('A roleta ainda não possui prêmios. Aguarde a administração cadastrar os prêmios.');else if(used)wheelMsg('Você já utilizou seu giro grátis hoje. Ainda pode comprar giros extras por 100 STACOINS.');else wheelMsg('Seu giro grátis de hoje está disponível!');}catch(e){wheelMsg('Não foi possível carregar os prêmios: '+e.message);}}
-async function spinSantaWheel(kind){if(!cloudUser||!cloudProfile)return alert('Faça login para girar a roleta.');const free=kind==='free',btn=document.getElementById(free?'freeWheelBtn':'paidWheelBtn');if(btn)btn.disabled=true;try{const prizes=wheelPrizesCache.length?wheelPrizesCache:await getWheelPrizes();const prize=wheelWeightedPick(prizes),userRef=fbDb.collection('usuarios').doc(uid()),historyRef=fbDb.collection('roletaHistorico').doc(),movementRef=fbDb.collection('movimentacoesStacoins').doc(),dateKey=brazilDateKey();const cost=free?0:WHEEL_EXTRA_COST;const result=await fbDb.runTransaction(async tx=>{const snap=await tx.get(userRef);if(!snap.exists)throw new Error('Perfil do motorista não encontrado.');const u=snap.data(),balance=Math.max(0,Number(u.stacoins||0));if(free&&u.roletaGratisData===dateKey)throw new Error('Seu giro grátis de hoje já foi utilizado.');if(!free&&balance<cost)throw new Error('Saldo insuficiente. Você precisa de 100 STACOINS.');const reward=prize.tipo==='coins'?Math.max(0,Math.floor(Number(prize.valor||0))):0;const newBalance=balance-cost+reward;const update={stacoins:newBalance,stacoinsAtualizadoEm:new Date().toISOString()};if(free)update.roletaGratisData=dateKey;tx.update(userRef,update);tx.set(historyRef,{motoristaId:uid(),motoristaNome:cloudProfile.apelidoJogo||cloudProfile.nome||cloudUser.email,prêmioId:prize.id,prêmioNome:prize.nome||'Prêmio',tipo:prize.tipo||'item',valor:reward,custo:cost,modo:free?'gratis':'pago',dataBrasilia:dateKey,criadoEm:new Date().toISOString()});if(cost)tx.set(movementRef,{motoristaId:uid(),tipo:'giro_roleta',valor:-cost,saldoAnterior:balance,saldoNovo:balance-cost,criadoEm:new Date().toISOString()});return {newBalance,reward,prize};});cloudProfile.stacoins=result.newBalance;const wheel=document.getElementById('prizeWheel');if(wheel){wheel.style.transform=`rotate(${1440+Math.floor(Math.random()*360)}deg)`;}wheelMsg('🎉 Resultado: '+(result.prize.nome||'Prêmio')+(result.reward?' · '+result.reward+' STACOINS adicionadas!':'')+(cost?' · '+cost+' STACOINS descontadas.':''),'good');await new Promise(r=>setTimeout(r,4600));await refreshWheel();wheelMsg('🎉 Você ganhou: '+(result.prize.nome||'Prêmio')+(result.reward?' · '+result.reward+' STACOINS adicionadas!':'')+(cost?' · '+cost+' STACOINS descontadas.':''),'good');await loadWheelHistory();}catch(e){alert('Não foi possível girar: '+e.message);await refreshWheel();}finally{if(btn)btn.disabled=false;}}
+async function spinSantaWheel(kind){
+ if(!cloudUser||!cloudProfile)return alert('Faça login para girar a roleta.');
+ const free=kind==='free',btn=document.getElementById(free?'freeWheelBtn':'paidWheelBtn');
+ if(btn)btn.disabled=true;
+ try{
+  const prizes=wheelPrizesCache.length?wheelPrizesCache:await getWheelPrizes();
+  const prize=wheelWeightedPick(prizes);
+  const userRef=fbDb.collection('usuarios').doc(uid());
+  const prizeRef=fbDb.collection('roletaPremios').doc(prize.id);
+  const historyRef=fbDb.collection('roletaHistorico').doc();
+  const movementRef=fbDb.collection('movimentacoesStacoins').doc();
+  const dateKey=brazilDateKey(),cost=free?0:WHEEL_EXTRA_COST;
+  const result=await fbDb.runTransaction(async tx=>{
+   const [snap,prizeSnap]=await Promise.all([tx.get(userRef),tx.get(prizeRef)]);
+   if(!snap.exists)throw new Error('Perfil do motorista não encontrado.');
+   if(!prizeSnap.exists||prizeSnap.data().ativo===false)throw new Error('Este prêmio não está mais ativo. Atualize a roleta.');
+   const u=snap.data(),currentPrize=prizeSnap.data();
+   const balance=Math.max(0,Number(u.stacoins||0));
+   if(free&&u.roletaGratisData===dateKey)throw new Error('Seu giro grátis de hoje já foi utilizado.');
+   if(!free&&balance<cost)throw new Error('Saldo insuficiente. Você precisa de 100 STACOINS.');
+   const reward=currentPrize.tipo==='coins'?Math.max(0,Math.floor(Number(currentPrize.valor||0))):0;
+   const newBalance=balance-cost+reward,now=new Date().toISOString();
+   const update={
+    stacoins:newBalance,
+    stacoinsAtualizadoEm:now,
+    roletaUltimoGiroId:historyRef.id
+   };
+   if(free)update.roletaGratisData=dateKey;
+   tx.update(userRef,update);
+   tx.set(historyRef,{
+    motoristaId:uid(),
+    motoristaNome:cloudProfile.apelidoJogo||cloudProfile.nome||cloudUser.email||'Motorista',
+    prêmioId:prize.id,
+    prêmioNome:currentPrize.nome||'Prêmio',
+    tipo:currentPrize.tipo||'item',
+    valor:reward,
+    custo:cost,
+    modo:free?'gratis':'pago',
+    dataBrasilia:dateKey,
+    criadoEm:now
+   });
+   if(cost)tx.set(movementRef,{
+    motoristaId:uid(),tipo:'giro_roleta',valor:-cost,
+    saldoAnterior:balance,saldoNovo:balance-cost,criadoEm:now
+   });
+   return {newBalance,reward,prize:{...prize,nome:currentPrize.nome||'Prêmio'}};
+  });
+  cloudProfile.stacoins=result.newBalance;
+  const wheel=document.getElementById('prizeWheel');
+  if(wheel)wheel.style.transform=`rotate(${1440+Math.floor(Math.random()*360)}deg)`;
+  wheelMsg('🎉 Resultado: '+(result.prize.nome||'Prêmio')+
+   (result.reward?' · '+result.reward+' STACOINS adicionadas!':'')+
+   (cost?' · '+cost+' STACOINS descontadas.':''),'good');
+  await new Promise(r=>setTimeout(r,4600));
+  await refreshWheel();
+  wheelMsg('🎉 Você ganhou: '+(result.prize.nome||'Prêmio')+
+   (result.reward?' · '+result.reward+' STACOINS adicionadas!':'')+
+   (cost?' · '+cost+' STACOINS descontadas.':''),'good');
+  await loadWheelHistory();
+ }catch(e){
+  alert('Não foi possível girar: '+e.message);
+  await refreshWheel();
+ }finally{if(btn)btn.disabled=false;}
+}
 async function loadWheelHistory(){const box=document.getElementById('wheelMyHistory');if(!box)return;if(!cloudUser){box.textContent='Faça login para consultar seus prêmios.';return;}try{const snap=await fbDb.collection('roletaHistorico').where('motoristaId','==',uid()).limit(30).get();const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')));box.innerHTML=rows.length?rows.map(x=>`<div class="wheel-prize-row"><div><strong>${esc(x.prêmioNome||'Prêmio')}</strong><small class="muted" style="display:block">${esc(x.dataBrasilia||'')} · ${x.modo==='gratis'?'Giro grátis':'Giro pago'}</small></div><span class="tag goldtag">${x.valor?'+ '+Number(x.valor).toLocaleString('pt-BR')+' STACOINS':(x.custo?'- '+x.custo+' STACOINS':'Prêmio')}</span></div>`).join(''):'Nenhum giro registrado ainda.';}catch(e){box.textContent='Erro ao carregar histórico: '+e.message;}}
 async function renderWheelAdmin(){const box=document.getElementById('wheelAdminPrizes');if(!box||!isAdmin())return;try{const list=await getWheelPrizes();paintWheel();box.innerHTML=list.length?list.map(p=>`<div class="wheel-prize-row"><div><strong>${esc(p.nome||'Prêmio')}</strong><small class="muted" style="display:block">${esc(p.tipo||'item')} · peso ${Number(p.peso||1)} · ${p.ativo===false?'Desativado':'Ativo'}</small></div><div style="display:flex;gap:6px"><button class="btn secondary" onclick="toggleWheelPrize('${p.id}',${p.ativo===false?'true':'false'})">${p.ativo===false?'Ativar':'Desativar'}</button><button class="btn" onclick="deleteWheelPrize('${p.id}')">Excluir</button></div></div>`).join(''):'Nenhum prêmio cadastrado.';}catch(e){box.textContent='Erro: '+e.message;}}
 async function toggleWheelPrize(id,active){if(!isAdmin())return;await fbDb.collection('roletaPremios').doc(id).update({ativo:active});await renderWheelAdmin();await refreshWheel();}
