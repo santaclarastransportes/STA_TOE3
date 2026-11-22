@@ -18,7 +18,7 @@
 #scGate .gatewrap{width:min(430px,100%);text-align:center}#scGate .logo{width:min(100%,340px);max-height:300px;object-fit:contain;margin:0 auto 14px;display:block}
 #scGate .loading{margin:10px auto 28px;color:#ddd;font-size:12px}#scGate .track{height:9px;border-radius:30px;background:#222;overflow:hidden;border:1px solid #333;margin:12px 0}
 #scGate .fill{height:100%;width:0;background:linear-gradient(90deg,#168c43,#f4b326);transition:width .1s linear}
-#scGate .loginbox{display:none;text-align:left;border:1px solid #27352b;border-radius:16px;background:#101510;padding:20px;box-shadow:0 15px 40px #0008}
+#scGate .loginbox{display:block;text-align:left;border:1px solid #27352b;border-radius:16px;background:#101510;padding:20px;box-shadow:0 15px 40px #0008}
 #scGate h2{text-align:center;margin:0 0 18px;font-size:21px}#scGate input{display:block;width:100%;padding:13px;margin:10px 0;border-radius:10px;background:#080d09;color:#fff;border:1px solid #354438;outline:none}
 #scGate button{width:100%;padding:13px;margin-top:10px;border:0;border-radius:10px;background:#31bf66;color:#07120a;font-weight:800}
 #scGate button.secondary{background:#202a22;border:1px solid #405444;color:#fff}#scGate .msg{font-size:12px;color:#b8c4ba;text-align:center;margin-top:12px;min-height:18px}
@@ -108,6 +108,7 @@
 .frame-art.ornate-frame .frame-glyph{font-size:32px;color:var(--frame-color);filter:drop-shadow(0 0 8px var(--frame-color));}
 .profile-hero-showcase .profile-avatar-art{border-radius:28px!important;border:7px ridge var(--equipped-frame-color,#d6ad54)!important;box-shadow:0 0 0 4px #17130b,0 0 28px var(--equipped-frame-color,#d6ad54)!important;width: min(42%,220px);aspect-ratio:1/1;flex-shrink:0;}
 @media(max-width:600px){.cosmetic-artbox .driver-avatar-photo{height:145px}.frame-art.ornate-frame{height:95px}.profile-hero-showcase .profile-avatar-art{width:40%;}}
+#gateLoading{display:none!important}#gateLogin{display:block!important}
 </style>
 </head>
 <body>
@@ -764,7 +765,7 @@ document.querySelector('.topright').appendChild(logoutBtn);
 document.querySelector('.topbar').style.cssText+=';flex-wrap:wrap;align-items:flex-start';
 logoutBtn.onclick=async()=>{try{await fbAuth.signOut();}catch(e){alert('Não foi possível sair: '+e.message);}};
 // Abertura com animação de 10 segundos antes de liberar o login.
-let gateElapsed=0;const gateTimer=setInterval(()=>{gateElapsed++;document.getElementById('gateFill').style.width=Math.min(100,gateElapsed*10)+'%';document.getElementById('gateCountdown').textContent=gateElapsed<10?(10-gateElapsed)+' segundos':'Carregamento concluído';if(gateElapsed>=10){clearInterval(gateTimer);document.getElementById('gateLoading').style.display='none';document.getElementById('gateLogin').style.display='block';gateReady=true;if(cloudUser&&cloudProfile)document.body.classList.add('loggedin');}},1000);
+gateReady=true;document.getElementById('gateLoading').style.display='none';document.getElementById('gateLogin').style.display='block';
 if(cloudReady)fbAuth.onAuthStateChanged(async user=>{cloudUser=user;cloudProfile=null;if(!user){renderDriverProfile(null,null);document.body.classList.remove('loggedin');document.getElementById('gateLogin').style.display=gateReady?'block':'none';document.getElementById('logoutBtn').style.display='none';authMsg('Faça login para carregar as viagens salvas na nuvem.');trips=[];credits=[];balance=0;refreshTrips();refreshBank();renderAdminQueue();renderStore();return;}try{const doc=await fbDb.collection('usuarios').doc(user.uid).get();if(!doc.exists){await fbAuth.signOut();return authMsg('Perfil não encontrado na coleção usuarios.');}cloudProfile=doc.data();renderDriverProfile(cloudProfile,user);if(cloudProfile.status==='rejeitado'||cloudProfile.role==='rejeitado'){gateMessage('Seu cadastro foi recusado. Entre em contato com um administrador.');await fbAuth.signOut();return;}if(cloudProfile.status==='bloqueado'){gateMessage('Sua conta está bloqueada.');await fbAuth.signOut();return;}if(gateReady)document.body.classList.add('loggedin');document.getElementById('logoutBtn').style.display='inline-block';document.querySelector('[data-page="admin"]').style.display='';authMsg('Conectado: '+(cloudProfile.nome||user.email)+' · '+cloudProfile.role,'good');await loadCloud();renderAdminQueue();renderStore();if(isAdmin())renderAdminStoreItems();}catch(e){authMsg('Falha ao carregar perfil: '+e.message,'bad');}});
 renderStore();
 // Oculta fila e protege entrada na página administrativa em cliente.
