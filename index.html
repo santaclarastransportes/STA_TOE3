@@ -494,76 +494,69 @@ if(cfgOK()){
 function uid(){return cloudUser?.uid||null;}
 function isAdmin(){return cloudProfile?.role==='admin';}
 function fileData(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file);});}
-// Rede viária do mapa TOE3: cada ligação segue o traçado visível das estradas.
-// Coordenadas no sistema original do mapa (678 x 452), independentes do tamanho da tela.
-
+// Rede viária TOE3 redesenhada sobre o centro das estradas visíveis no mapa original.
+// Todas as coordenadas usam o viewBox original 678 x 452. Não existem ligações
+// entre cidades que não estejam fisicamente conectadas pelas estradas desenhadas.
 const TOE_CITIES={
- 'nancy':[52,132],'frankfurt':[239,35],'prague':[584,28],'stuttgart':[220,128],
- 'nuremberg':[362,98],'tubingen':[282,174],'quarry':[258,215],'munich':[385,211],
- 'zurich':[219,294],'lech':[435,258],'linz':[590,211],'tremola':[232,387],
- 'airolo':[248,431],'milano':[349,406]
+ 'nancy':[52,132],'frankfurt':[239,35],'prague':[584,28],'stuttgart':[219,124],
+ 'nuremberg':[362,98],'tubingen':[274,182],'quarry':[259,201],'munich':[384,207],
+ 'zurich':[219,299],'lech':[435,259],'linz':[590,211],'tremola':[240,390],
+ 'airolo':[248,423],'milano':[349,406]
 };
-// Rede vetorial refeita seguindo o centro das estradas visíveis no mapa original 678x452.
-// Cada curva usa vários pontos curtos para evitar atalhos diagonais sobre o terreno.
 const TOE_ROADS={
- // Nancy -> Frankfurt (estrada superior sinuosa)
- n1:[61,115],n2:[77,94],n3:[93,88],n4:[108,69],n5:[126,77],n6:[143,91],n7:[161,96],n8:[178,78],n9:[195,56],n10:[214,40],
- // Nancy -> Zurich (estrada oeste/sul)
- n11:[62,158],n12:[84,176],n13:[108,190],n14:[130,202],n15:[151,204],n16:[154,231],n17:[150,258],n18:[153,272],n19:[179,274],n20:[205,279],n21:[218,291],
- // Frankfurt -> Prague (estrada norte)
- f1:[263,35],f2:[282,37],f3:[285,57],f4:[288,76],f5:[314,69],f6:[340,63],f7:[367,58],f8:[379,58],f9:[385,82],f10:[392,98],f11:[410,104],f12:[432,94],f13:[454,81],f14:[475,66],f15:[495,53],f16:[511,57],f17:[522,72],f18:[540,64],f19:[558,47],f20:[578,34],
- // Frankfurt -> Stuttgart -> Tubingen -> corredor central
- s1:[249,58],s2:[259,82],s3:[270,106],s4:[279,126],s5:[266,133],s6:[247,132],s7:[230,128],
- t1:[294,151],t2:[305,165],t3:[310,180],t4:[303,192],t5:[309,207],t6:[320,220],
- q1:[287,211],q2:[279,225],q3:[270,237],q4:[251,242],
- // Frankfurt -> Munich, via corredor central (ramal sul)
- c1:[264,151],c2:[278,164],c3:[294,181],c4:[310,197],c5:[328,213],c6:[345,226],c7:[361,231],c8:[379,230],
- // Nuremberg -> Munich
- u1:[379,119],u2:[390,144],u3:[400,168],u4:[409,191],u5:[402,204],
- // Munich -> Linz (estrada leste)
- e1:[405,225],e2:[427,219],e3:[449,214],e4:[470,209],e5:[490,207],e6:[508,211],e7:[528,207],e8:[550,207],e9:[570,210],e10:[588,212],
- // Munich -> Milano: ramo sul-oeste, traçado esquerdo da bifurcação (não passa pelo ramal de Lech)
- m1:[379,231],m2:[385,247],m3:[390,266],m4:[395,285],m5:[400,305],m6:[405,321],
- m7:[418,324],m8:[430,322],m9:[432,340],m10:[436,357],m11:[436,371],
- m12:[419,378],m13:[397,382],m14:[375,389],m15:[358,399],m16:[349,405],
- // Ramal de Lech: bifurcação direita, mantido separado da rota de Milano
- l1:[399,235],l2:[414,244],l3:[427,252],l4:[435,260],l5:[438,277],l6:[433,291],l7:[435,307],l8:[433,321],
- // Zurich -> Tremola -> Airolo (estrada sinuosa sul)
- z1:[228,309],z2:[220,325],z3:[214,343],z4:[211,362],z5:[218,378],z6:[230,390],z7:[239,407],z8:[247,426],
- // Zurich -> Munich (estrada diagonal central)
- z9:[245,285],z10:[266,275],z11:[283,261],z12:[300,247],z13:[320,239],z14:[340,234],z15:[360,231],
- // Linz -> Prague (ramal norte)
- p1:[589,190],p2:[589,166],p3:[590,143],p4:[588,119],p5:[588,95],p6:[586,72],p7:[583,49],
- // Curva/contorno de Linz (ligação da estrada principal)
- p8:[604,195],p9:[611,181],p10:[608,165],p11:[595,157]
+ // Corredor Nancy - Frankfurt - Nuremberg - Prague
+ w1:[75,151],w2:[96,116],w3:[126,78],w4:[158,97],w5:[178,75],w6:[214,39],
+ f1:[280,36],f2:[287,74],f3:[330,66],f4:[378,56],f5:[389,99],f6:[420,91],f7:[470,60],f8:[510,50],f9:[548,31],
+ // Rota oeste de Nancy para Zurich
+ zW1:[59,170],zW2:[105,198],zW3:[145,222],zW4:[151,260],zW5:[151,292],zW6:[190,298],
+ // Diagonal Frankfurt - Stuttgart - Tubingen - centro
+ d1:[258,112],d2:[279,151],d3:[307,181],d4:[324,201],d5:[340,220],
+ st1:[232,126],st2:[253,125],
+ tu1:[291,190],tu2:[309,184],
+ q1:[275,216],q2:[294,218],q3:[310,207],
+ // Nuremberg para o eixo central
+ n1:[390,112],n2:[405,150],n3:[417,184],n4:[425,202],
+ // Eixo principal Munich - Linz (curvas da estrada do mapa)
+ e1:[411,202],e2:[438,196],e3:[466,190],e4:[489,194],e5:[508,197],e6:[533,190],e7:[558,194],e8:[575,201],
+ // Estrada sul Munich - Milano
+ s1:[393,229],s2:[400,250],s3:[405,272],s4:[411,294],s5:[416,316],s6:[425,340],s7:[426,359],s8:[414,371],s9:[392,382],s10:[370,394],
+ // Ramal Lech, conectado à estrada sul no seu cruzamento real
+ l1:[410,231],l2:[425,244],l3:[435,259],l4:[432,280],l5:[430,300],l6:[435,320],l7:[450,326],l8:[456,342],l9:[447,355],
+ // Zurich - cruzamento central - Munich
+ z1:[235,289],z2:[258,270],z3:[276,247],z4:[300,235],z5:[320,225],z6:[340,220],
+ // Zurich - Tremola - Airolo
+ a1:[207,341],a2:[205,367],a3:[216,391],a4:[229,414],a5:[240,429],
+ // Ligação de Zurich à estrada central via ramal sinuoso
+ zu1:[245,288],zu2:[263,274],zu3:[274,254],zu4:[284,239],zu5:[300,235],
+ // Linz - Prague, seguindo a volta oriental do mapa
+ p1:[590,185],p2:[587,151],p3:[590,110],p4:[586,70],p5:[575,45],p6:[610,75],p7:[610,150],p8:[610,190]
 };
 const TOE_ROAD_EDGES=[
- // Nancy - Frankfurt
- ['nancy','n1'],['n1','n2'],['n2','n3'],['n3','n4'],['n4','n5'],['n5','n6'],['n6','n7'],['n7','n8'],['n8','n9'],['n9','n10'],['n10','frankfurt'],
- // Nancy - Zurich
- ['nancy','n11'],['n11','n12'],['n12','n13'],['n13','n14'],['n14','n15'],['n15','n16'],['n16','n17'],['n17','n18'],['n18','n19'],['n19','n20'],['n20','zurich'],
- // Frankfurt - Prague
- ['frankfurt','f1'],['f1','f2'],['f2','f3'],['f3','f4'],['f4','f5'],['f5','f6'],['f6','f7'],['f7','f8'],['f8','f9'],['f9','f10'],['f10','f11'],['f11','f12'],['f12','f13'],['f13','f14'],['f14','f15'],['f15','f16'],['f16','f17'],['f17','f18'],['f18','f19'],['f19','f20'],['f20','prague'],
- // Frankfurt - Stuttgart
- ['frankfurt','s1'],['s1','s2'],['s2','s3'],['s3','s4'],['s4','s5'],['s5','s6'],['s6','stuttgart'],
- // Frankfurt/Tubingen/Quarry e centro
- ['s4','t1'],['t1','t2'],['t2','t3'],['t3','tubingen'],['tubingen','t4'],['t4','t5'],['t5','t6'],['t6','q1'],['q1','q2'],['q2','q3'],['q3','quarry'],
- ['t3','c1'],['c1','c2'],['c2','c3'],['c3','c4'],['c4','c5'],['c5','c6'],['c6','c7'],['c7','c8'],
- // Nuremberg - Munich
- ['nuremberg','u1'],['u1','u2'],['u2','u3'],['u3','u4'],['u4','u5'],['u5','munich'],
- // Munich - Linz
- ['munich','e1'],['e1','e2'],['e2','e3'],['e3','e4'],['e4','e5'],['e5','e6'],['e6','e7'],['e7','e8'],['e8','e9'],['e9','e10'],['e10','linz'],
- // Munich - Milano, curva sul-oeste exata
- ['munich','m1'],['m1','m2'],['m2','m3'],['m3','m4'],['m4','m5'],['m5','m6'],['m6','m7'],['m7','m8'],['m8','m9'],['m9','m10'],['m10','m11'],['m11','m12'],['m12','m13'],['m13','m14'],['m14','m15'],['m15','milano'],
- // Ramal independente de Lech
- ['munich','l1'],['l1','l2'],['l2','l3'],['l3','lech'],['lech','l5'],['l5','l6'],['l6','l7'],['l7','l8'],['l8','m8'],
+ // Estrada norte/oeste
+ ['nancy','w1'],['w1','w2'],['w2','w3'],['w3','w4'],['w4','w5'],['w5','w6'],['w6','frankfurt'],
+ ['frankfurt','f1'],['f1','f2'],['f2','f3'],['f3','f4'],['f4','f5'],['f5','f6'],['f6','f7'],['f7','f8'],['f8','f9'],['f9','prague'],
+ ['nancy','zW1'],['zW1','zW2'],['zW2','zW3'],['zW3','zW4'],['zW4','zW5'],['zW5','zW6'],['zW6','zurich'],
+ // Diagonal e ramais das cidades centrais
+ ['w6','d1'],['d1','d2'],['d2','d3'],['d3','d4'],['d4','d5'],
+ ['d1','st1'],['st1','stuttgart'],['st1','st2'],['st2','d2'],
+ ['d3','tu1'],['tu1','tubingen'],['tubingen','tu2'],['tu2','d3'],
+ ['tu1','q1'],['q1','quarry'],['quarry','q2'],['q2','q3'],['q3','d4'],
+ // Nuremberg para o eixo central
+ ['nuremberg','n1'],['n1','f5'],['n1','n2'],['n2','n3'],['n3','n4'],['n4','e1'],
+ // Cruzamento central e eixo Munich - Linz
+ ['d5','munich'],['munich','e1'],['e1','e2'],['e2','e3'],['e3','e4'],['e4','e5'],['e5','e6'],['e6','e7'],['e7','e8'],['e8','linz'],
+ // Munich - Milano
+ ['munich','s1'],['s1','s2'],['s2','s3'],['s3','s4'],['s4','s5'],['s5','s6'],['s6','s7'],['s7','s8'],['s8','s9'],['s9','s10'],['s10','milano'],
+ // Lech: ramal ligado ao eixo sul, sem atalhos artificiais
+ ['s1','l1'],['l1','l2'],['l2','lech'],['lech','l4'],['l4','l5'],['l5','l6'],['l6','l7'],['l7','l8'],['l8','l9'],['l9','s7'],
+ // Zurich - Munich pela estrada sinuosa do mapa
+ ['zurich','z1'],['z1','z2'],['z2','z3'],['z3','z4'],['z4','z5'],['z5','z6'],['z6','d5'],
  // Zurich - Tremola - Airolo
- ['zurich','z1'],['z1','z2'],['z2','z3'],['z3','z4'],['z4','z5'],['z5','tremola'],['tremola','z6'],['z6','z7'],['z7','z8'],['z8','airolo'],
- // Zurich - Munich
- ['zurich','z9'],['z9','z10'],['z10','z11'],['z11','z12'],['z12','z13'],['z13','z14'],['z14','z15'],['z15','c8'],
- // Linz - Prague
- ['linz','p1'],['p1','p2'],['p2','p3'],['p3','p4'],['p4','p5'],['p5','p6'],['p6','p7'],['p7','prague'],
- ['linz','p8'],['p8','p9'],['p9','p10'],['p10','p11'],['p11','p3']
+ ['zurich','a1'],['a1','a2'],['a2','tremola'],['tremola','a3'],['a3','a4'],['a4','a5'],['a5','airolo'],
+ // Curva superior do ramal Zurich para o centro
+ ['zurich','zu1'],['zu1','zu2'],['zu2','zu3'],['zu3','zu4'],['zu4','z4'],
+ // Ramal oriental de Linz/Prague
+ ['linz','p1'],['p1','p2'],['p2','p3'],['p3','p4'],['p4','p5'],['p5','prague'],['p5','p6'],['p6','p7'],['p7','p8'],['p8','linz']
 ];
 function toePoint(id){return TOE_CITIES[id]||TOE_ROADS[id]||null;}
 function toeRoadPath(from,to){
