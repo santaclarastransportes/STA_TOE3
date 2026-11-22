@@ -494,78 +494,119 @@ if(cfgOK()){
 function uid(){return cloudUser?.uid||null;}
 function isAdmin(){return cloudProfile?.role==='admin';}
 function fileData(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file);});}
-// Rede viária TOE3 redesenhada sobre o centro das estradas visíveis no mapa original.
-// Todas as coordenadas usam o viewBox original 678 x 452. Não existem ligações
-// entre cidades que não estejam fisicamente conectadas pelas estradas desenhadas.
+// Rede viária TOE3: grafo baseado no traçado visível do mapa. Cada ligação
+// guarda uma polilinha (não uma reta entre cidades); o Dijkstra usa o comprimento
+// real dessas curvas e só percorre ligações declaradas.
 const TOE_CITIES={
  'nancy':[52,132],'frankfurt':[239,35],'prague':[584,28],'stuttgart':[219,124],
  'nuremberg':[362,98],'tubingen':[274,182],'quarry':[259,201],'munich':[384,207],
  'zurich':[219,299],'lech':[435,259],'linz':[590,211],'tremola':[240,390],
  'airolo':[248,423],'milano':[349,406]
 };
-const TOE_ROADS={
- // Corredor Nancy - Frankfurt - Nuremberg - Prague
- w1:[75,151],w2:[96,116],w3:[126,78],w4:[158,97],w5:[178,75],w6:[214,39],
- f1:[280,36],f2:[287,74],f3:[330,66],f4:[378,56],f5:[389,99],f6:[420,91],f7:[470,60],f8:[510,50],f9:[548,31],
- // Rota oeste de Nancy para Zurich
- zW1:[59,170],zW2:[105,198],zW3:[145,222],zW4:[151,260],zW5:[151,292],zW6:[190,298],
- // Diagonal Frankfurt - Stuttgart - Tubingen - centro
- d1:[258,112],d2:[279,151],d3:[307,181],d4:[324,201],d5:[340,220],
- st1:[232,126],st2:[253,125],
- tu1:[291,190],tu2:[309,184],
- q1:[275,216],q2:[294,218],q3:[310,207],
- // Nuremberg para o eixo central
- n1:[390,112],n2:[405,150],n3:[417,184],n4:[425,202],
- // Eixo principal Munich - Linz (curvas da estrada do mapa)
- e1:[411,202],e2:[438,196],e3:[466,190],e4:[489,194],e5:[508,197],e6:[533,190],e7:[558,194],e8:[575,201],
- // Estrada sul Munich - Milano
- s1:[393,229],s2:[400,250],s3:[405,272],s4:[411,294],s5:[416,316],s6:[425,340],s7:[426,359],s8:[414,371],s9:[392,382],s10:[370,394],
- // Ramal Lech, conectado à estrada sul no seu cruzamento real
- l1:[410,231],l2:[425,244],l3:[435,259],l4:[432,280],l5:[430,300],l6:[435,320],l7:[450,326],l8:[456,342],l9:[447,355],
- // Zurich - cruzamento central - Munich
- z1:[235,289],z2:[258,270],z3:[276,247],z4:[300,235],z5:[320,225],z6:[340,220],
- // Zurich - Tremola - Airolo
- a1:[207,341],a2:[205,367],a3:[216,391],a4:[229,414],a5:[240,429],
- // Ligação de Zurich à estrada central via ramal sinuoso
- zu1:[245,288],zu2:[263,274],zu3:[274,254],zu4:[284,239],zu5:[300,235],
- // Linz - Prague, seguindo a volta oriental do mapa
- p1:[590,185],p2:[587,151],p3:[590,110],p4:[586,70],p5:[575,45],p6:[610,75],p7:[610,150],p8:[610,190]
+// Pontos de junção nas estradas (coordenadas do viewBox 678 x 452)
+const TOE_J={
+ nw:[211,42], westtop:[74,145], west:[59,169], west2:[151,222], west3:[151,270], zw:[211,274],
+ diag:[289,171], st:[219,124], tu:[274,182], quarry:[259,201], center:[328,229],
+ mun:[384,207], n1:[388,101], n2:[412,143], n3:[421,189],
+ east1:[420,205], east2:[466,198], east3:[505,196], east4:[550,195], linz:[590,211],
+ pr1:[585,112], pr2:[584,68], pr3:[575,44],
+ south1:[380,230], south2:[397,282], south3:[405,324], south4:[442,325],
+ south5:[442,376], south6:[385,392], milano:[349,406],
+ lech1:[410,246], lech2:[435,259], lech3:[432,282], lech4:[439,310],
+ zurich:[219,299], z1:[235,281], z2:[260,258], z3:[285,242],
+ westbottom:[207,270], wb1:[207,294], wb2:[207,329], wb3:[216,357],
+ trem1:[229,382], tremola:[240,390], a1:[229,414], airolo:[248,423],
+ zloop1:[246,287], zloop2:[263,276], zloop3:[278,252],
+ frank1:[280,36], frank2:[287,74], frank3:[330,66], frank4:[378,56],
+ frank5:[389,99], frank6:[420,91], frank7:[470,60], frank8:[510,50], frank9:[548,31]
 };
-const TOE_ROAD_EDGES=[
- // Estrada norte/oeste
- ['nancy','w1'],['w1','w2'],['w2','w3'],['w3','w4'],['w4','w5'],['w5','w6'],['w6','frankfurt'],
- ['frankfurt','f1'],['f1','f2'],['f2','f3'],['f3','f4'],['f4','f5'],['f5','f6'],['f6','f7'],['f7','f8'],['f8','f9'],['f9','prague'],
- ['nancy','zW1'],['zW1','zW2'],['zW2','zW3'],['zW3','zW4'],['zW4','zW5'],['zW5','zW6'],['zW6','zurich'],
- // Diagonal e ramais das cidades centrais
- ['w6','d1'],['d1','d2'],['d2','d3'],['d3','d4'],['d4','d5'],
- ['d1','st1'],['st1','stuttgart'],['st1','st2'],['st2','d2'],
- ['d3','tu1'],['tu1','tubingen'],['tubingen','tu2'],['tu2','d3'],
- ['tu1','q1'],['q1','quarry'],['quarry','q2'],['q2','q3'],['q3','d4'],
- // Nuremberg para o eixo central
- ['nuremberg','n1'],['n1','f5'],['n1','n2'],['n2','n3'],['n3','n4'],['n4','e1'],
- // Cruzamento central e eixo Munich - Linz
- ['d5','munich'],['munich','e1'],['e1','e2'],['e2','e3'],['e3','e4'],['e4','e5'],['e5','e6'],['e6','e7'],['e7','e8'],['e8','linz'],
- // Munich - Milano
- ['munich','s1'],['s1','s2'],['s2','s3'],['s3','s4'],['s4','s5'],['s5','s6'],['s6','s7'],['s7','s8'],['s8','s9'],['s9','s10'],['s10','milano'],
- // Lech: ramal ligado ao eixo sul, sem atalhos artificiais
- ['s1','l1'],['l1','l2'],['l2','lech'],['lech','l4'],['l4','l5'],['l5','l6'],['l6','l7'],['l7','l8'],['l8','l9'],['l9','s7'],
- // Zurich - Munich pela estrada sinuosa do mapa
- ['zurich','z1'],['z1','z2'],['z2','z3'],['z3','z4'],['z4','z5'],['z5','z6'],['z6','d5'],
- // Zurich - Tremola - Airolo
- ['zurich','a1'],['a1','a2'],['a2','tremola'],['tremola','a3'],['a3','a4'],['a4','a5'],['a5','airolo'],
- // Curva superior do ramal Zurich para o centro
- ['zurich','zu1'],['zu1','zu2'],['zu2','zu3'],['zu3','zu4'],['zu4','z4'],
- // Ramal oriental de Linz/Prague
- ['linz','p1'],['p1','p2'],['p2','p3'],['p3','p4'],['p4','p5'],['p5','prague'],['p5','p6'],['p6','p7'],['p7','p8'],['p8','linz']
+// Cada aresta contém a curva da estrada na ordem origem-destino.
+const TOE_EDGE_LINES=[
+ ['nancy','westtop',[[52,132],[63,137],[74,145]]],
+ ['westtop','nw',[[74,145],[91,108],[105,82],[121,79],[137,91],[160,105],[177,96],[196,68],[211,42]]],
+ ['westtop','west',[[74,145],[59,169]]],
+ ['west','west2',[[59,169],[80,184],[108,203],[135,220],[151,222]]],
+ ['nw','frankfurt',[[211,42],[224,43],[239,35]]],
+ ['nw','frank1',[[211,42],[224,43],[239,35],[280,36]]],
+ ['frank1','frank2',[[280,36],[287,45],[283,73]]],
+ ['frank2','frank3',[[283,73],[294,76],[330,66]]],
+ ['frank3','frank4',[[330,66],[365,57],[378,56]]],
+ ['frank4','frank5',[[378,56],[385,71],[389,99]]],
+ ['frank5','frank6',[[389,99],[402,105],[420,91]]],
+ ['frank6','frank7',[[420,91],[447,79],[470,60]]],
+ ['frank7','frank8',[[470,60],[492,54],[510,50]]],
+ ['frank8','frank9',[[510,50],[532,39],[548,31]]],
+ ['frank9','prague',[[548,31],[565,29],[584,28]]],
+ ['prague','pr3',[[584,28],[596,43],[585,68]]],
+ ['pr3','pr2',[[585,68],[576,84],[584,112]]],
+ ['pr2','linz',[[584,112],[590,151],[590,185],[590,211]]],
+ ['nw','diag',[[211,42],[230,72],[250,111],[270,145],[289,171]]],
+ ['diag','stuttgart',[[289,171],[269,161],[251,142],[235,126],[219,124]]],
+ ['stuttgart','diag',[[219,124],[238,127],[253,125],[270,145],[289,171]]],
+ ['diag','tu',[[289,171],[305,181],[320,195],[328,207]]],
+ ['tu','tubingen',[[328,207],[309,194],[292,184],[274,182]]],
+ ['tubingen','quarry',[[274,182],[268,190],[259,201]]],
+ ['quarry','center',[[259,201],[278,207],[294,218],[310,224],[328,229]]],
+ ['diag','center',[[289,171],[306,191],[320,211],[328,229]]],
+ ['frank5','nuremberg',[[389,99],[380,103],[362,98]]],
+ ['nuremberg','n2',[[362,98],[382,111],[397,126],[412,143]]],
+ ['n2','n3',[[412,143],[416,164],[421,189]]],
+ ['n3','munich',[[421,189],[407,198],[384,207]]],
+ ['center','munich',[[328,229],[350,217],[368,211],[384,207]]],
+ ['munich','east1',[[384,207],[402,207],[420,205]]],
+ ['east1','east2',[[420,205],[438,201],[452,195],[466,198]]],
+ ['east2','east3',[[466,198],[482,194],[495,199],[505,196]]],
+ ['east3','east4',[[505,196],[526,189],[541,191],[550,195]]],
+ ['east4','linz',[[550,195],[570,202],[590,211]]],
+ ['center','south1',[[328,229],[342,224],[357,224],[380,230]]],
+ ['south1','south2',[[380,230],[388,248],[393,266],[397,282]]],
+ ['south2','south3',[[397,282],[402,301],[405,324]]],
+ ['south3','south4',[[405,324],[419,329],[432,325],[442,325]]],
+ ['south4','south5',[[442,325],[438,346],[440,362],[442,376]]],
+ ['south5','south6',[[442,376],[421,380],[401,386],[385,392]]],
+ ['south6','milano',[[385,392],[370,400],[349,406]]],
+ ['south1','lech1',[[380,230],[394,235],[410,246]]],
+ ['lech1','lech2',[[410,246],[422,252],[435,259]]],
+ ['lech2','lech3',[[435,259],[431,270],[432,282]]],
+ ['lech3','lech4',[[432,282],[437,296],[439,310]]],
+ ['lech4','south4',[[439,310],[448,316],[442,325]]],
+ ['west2','west3',[[151,222],[154,244],[151,270]]],
+ ['west3','westbottom',[[151,270],[150,288],[151,298],[178,302],[207,304]]],
+ ['westbottom','zw',[[207,270],[207,282],[207,294],[207,274]]],
+ ['zw','center',[[207,274],[231,267],[254,258],[277,246],[300,234],[328,229]]],
+ ['zw','zurich',[[207,274],[211,284],[219,299]]],
+ ['zurich','z1',[[219,299],[227,289],[235,281]]],
+ ['z1','z2',[[235,281],[246,268],[260,258]]],
+ ['z2','z3',[[260,258],[272,249],[285,242]]],
+ ['z3','center',[[285,242],[302,234],[315,228],[328,229]]],
+ ['westbottom','wb1',[[207,270],[207,294]]],
+ ['wb1','wb2',[[207,294],[207,314],[207,329]]],
+ ['wb2','wb3',[[207,329],[210,344],[216,357]]],
+ ['wb3','trem1',[[216,357],[224,370],[229,382]]],
+ ['trem1','tremola',[[229,382],[236,386],[240,390]]],
+ ['tremola','a1',[[240,390],[235,402],[229,414]]],
+ ['a1','airolo',[[229,414],[239,420],[248,423]]],
+ ['zurich','wb1',[[219,299],[211,297],[207,294]]],
+ ['z1','zloop1',[[235,281],[242,284],[246,287]]],
+ ['zloop1','zloop2',[[246,287],[254,282],[263,276]]],
+ ['zloop2','zloop3',[[263,276],[272,263],[278,252]]],
+ ['zloop3','z3',[[278,252],[282,247],[285,242]]]
 ];
-function toePoint(id){return TOE_CITIES[id]||TOE_ROADS[id]||null;}
+function toePoint(id){return TOE_CITIES[id]||TOE_J[id]||null;}
 function toeRoadPath(from,to){
  if(!from||!to)return null;if(from===to)return [toePoint(from)];
- const graph={};const add=(a,b)=>{const pa=toePoint(a),pb=toePoint(b);if(!pa||!pb)return;const w=Math.hypot(pb[0]-pa[0],pb[1]-pa[1]);(graph[a]??=[]).push({to:b,w});(graph[b]??=[]).push({to:a,w});};
- TOE_ROAD_EDGES.forEach(e=>add(e[0],e[1]));
+ const graph={};
+ for(const [a,b,line] of TOE_EDGE_LINES){
+  const pts=line.map(p=>[p[0],p[1]]);let length=0;for(let i=1;i<pts.length;i++)length+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);
+  (graph[a]??=[]).push({to:b,w:length,line:pts});
+  (graph[b]??=[]).push({to:a,w:length,line:pts.slice().reverse()});
+ }
  const dist={[from]:0},prev={},open=new Set(Object.keys(graph));
- while(open.size){let u=null,best=Infinity;for(const n of open){const d=dist[n]??Infinity;if(d<best){best=d;u=n;}}if(u===null||best===Infinity)break;open.delete(u);if(u===to)break;for(const e of graph[u]||[]){const nd=best+e.w;if(nd<(dist[e.to]??Infinity)){dist[e.to]=nd;prev[e.to]=u;}}}
- if(dist[to]===undefined)return null;const ids=[to];while(ids[0]!==from){const n=prev[ids[0]];if(!n)return null;ids.unshift(n);}return ids.map(toePoint);
+ while(open.size){let u=null,best=Infinity;for(const n of open){const d=dist[n]??Infinity;if(d<best){best=d;u=n;}}if(u===null||best===Infinity)break;open.delete(u);if(u===to)break;
+  for(const e of graph[u]||[]){const nd=best+e.w;if(nd<(dist[e.to]??Infinity)){dist[e.to]=nd;prev[e.to]={node:u,line:e.line};}}
+ }
+ if(dist[to]===undefined)return null;const chunks=[];let cur=to;while(cur!==from){const step=prev[cur];if(!step)return null;chunks.unshift(step.line);cur=step.node;}
+ const out=[];for(const line of chunks)for(const pt of line){if(!out.length||Math.hypot(pt[0]-out[out.length-1][0],pt[1]-out[out.length-1][1])>.2)out.push(pt);}return out;
 }
 function toeNorm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z]/g,'');}
 function toeCity(value){const n=toeNorm(value);return Object.keys(TOE_CITIES).find(k=>n.includes(toeNorm(k))||toeNorm(k).includes(n)&&n.length>3)||null;}
