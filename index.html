@@ -114,7 +114,9 @@
 .map-panel{background:linear-gradient(145deg,#101915,#0b120e);border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:16px}
 .toe-map-wrap{position:relative;width:100%;overflow:hidden;border:1px solid #34513b;border-radius:12px;background:#08120d;line-height:0}
 .toe-map-wrap>img{display:block;width:100%;height:auto;filter:contrast(1.04) saturate(1.04)}
-.toe-map-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.toe-map-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:auto;overflow:visible}
+.toe-driver-marker{cursor:pointer;pointer-events:all}.toe-driver-marker:focus{outline:none}.toe-driver-marker circle{vector-effect:non-scaling-stroke}.toe-driver-marker:hover circle:first-child{stroke-width:3}.toe-route{pointer-events:none;fill:none;stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:6 3;filter:drop-shadow(0 1px 2px #000)}
+.map-trip{cursor:pointer}.map-trip.selected{border-color:#f4c75e;box-shadow:0 0 0 1px #f4c75e inset}
 .toe-route{fill:none;stroke:#f4c75e;stroke-width:2.7;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:5 3;filter:drop-shadow(0 1px 2px #000)}
 .toe-marker{stroke:#fff;stroke-width:1.7;filter:drop-shadow(0 1px 3px #000)}
 .toe-map-legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin:10px 2px 0}
@@ -558,37 +560,47 @@ function toeRoadPath(from,to){
 function toeNorm(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z]/g,'');}
 function toeCity(value){const n=toeNorm(value);return Object.keys(TOE_CITIES).find(k=>n.includes(toeNorm(k))||toeNorm(k).includes(n)&&n.length>3)||null;}
 function toeEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-async function refreshToeMap(){
- const status=document.getElementById('toeMapStatus'),overlay=document.getElementById('toeMapOverlay'),list=document.getElementById('toeMapTrips');
- if(!status||!overlay||!list)return;
- let active=[];
- try{
-  if(!cloudUser){overlay.innerHTML='';list.innerHTML='';status.textContent='Faça login para visualizar as cargas em andamento.';return;}
-  if(isAdmin()) active=(cloudTrips||[]).filter(t=>t.status==='Em andamento');
-  else {
-   // Leitura apenas das viagens ativas para exibir as operações da equipe no mapa.
-   const snap=await fbDb.collection('viagens').where('status','==','Em andamento').get();
-   active=snap.docs.map(d=>({...d.data(),id:d.id}));
+let toeMapActiveTrips=[];
+let toeMapSelectedIndex=-1;
+const TOE_DRIVER_COLORS=['#35c66b','#f4c75e','#55b8ff','#ff7a90','#c58bff','#ff9b45','#4de0d0','#e6e86b','#ff72d2','#a7c5ff'];
+function selectToeMapTrip(index){
+ const i=Number(index);if(!Number.isInteger(i)||!toeMapActiveTrips[i])return;
+ toeMapSelectedIndex=toeMapSelectedIndex===i?-1:i;
+ drawToeMapTrips();
+}
+function drawToeMapTrips(){
+ const overlay=document.getElementById('toeMapOverlay'),list=document.getElementById('toeMapTrips');if(!overlay||!list)return;
+ const paths=[],markers=[],cards=[];
+ toeMapActiveTrips.forEach((t,i)=>{
+  const origin=t.origem||t.origin||'',dest=t.destino||t.destination||'';
+  const a=toeCity(origin),b=toeCity(dest),color=TOE_DRIVER_COLORS[i%TOE_DRIVER_COLORS.length];
+  const selected=toeMapSelectedIndex===i;
+  if(selected&&a&&b){
+   const road=toeRoadPath(a,b);
+   if(road&&road.length>1){const d=road.map((pt,j)=>(j?'L':'M')+' '+pt[0]+' '+pt[1]).join(' ');paths.push(`<path class="toe-route" stroke="${color}" d="${d}"/>`);}
   }
-  active=active.filter(t=>t.status==='Em andamento');
-  const paths=[],markers=[],cards=[];
-  active.forEach((t,i)=>{
-   const origin=t.origem||t.origin||'',dest=t.destino||t.destination||'';
-   const a=toeCity(origin),b=toeCity(dest);let route='';
-   if(a&&b){const road=toeRoadPath(a,b);if(road&&road.length>1){const d=road.map((pt,j)=>(j?'L':'M')+' '+pt[0]+' '+pt[1]).join(' ');route=`<path class="toe-route" d="${d}"/>`;}const [x1,y1]=TOE_CITIES[a],[x2,y2]=TOE_CITIES[b];markers.push(`<circle class="toe-marker" cx="${x1}" cy="${y1}" r="6" fill="#35c66b"/><circle cx="${x1}" cy="${y1}" r="10" fill="none" stroke="#35c66b" stroke-opacity=".65" stroke-width="2"/><circle class="toe-marker" cx="${x2}" cy="${y2}" r="5" fill="#f4c75e"/>`);}
-   else if(a){const [x,y]=TOE_CITIES[a];markers.push(`<circle class="toe-marker" cx="${x}" cy="${y}" r="6" fill="#35c66b"/>`);}
-   paths.push(route);
-   cards.push(`<div class="map-trip"><strong>${toeEsc(origin||'Origem não informada')} → ${toeEsc(dest||'Destino não informado')}</strong><small>Motorista: ${toeEsc(t.motoristaNome||t.driver||'Motorista')} · ${toeEsc(t.tipoCarga||t.type||'Carga')}</small>${(!a||!b)?'<small style="display:block;color:#e5c778;margin-top:4px">Cidade não reconhecida no mapa; confira a grafia registrada.</small>':''}</div>`);
-  });
-  overlay.innerHTML=paths.join('')+markers.join('');
-  list.innerHTML=cards.join('');
-  status.textContent=active.length?`${active.length} carga(s) em andamento no momento.`:'Nenhuma carga em andamento. As viagens aparecem aqui após o registro de início.';
-  status.className=active.length?'success':'notice';
+  if(a&&b){const [x1,y1]=TOE_CITIES[a],[x2,y2]=TOE_CITIES[b];
+   markers.push(`<g class="toe-driver-marker" role="button" tabindex="0" aria-label="Mostrar rota de ${toeEsc(t.motoristaNome||t.driver||'Motorista')}" onclick="selectToeMapTrip(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectToeMapTrip(${i})}"><title>${toeEsc(t.motoristaNome||t.driver||'Motorista')}: ${toeEsc(origin)} → ${toeEsc(dest)}. Toque para ver a rota</title><circle cx="${x1}" cy="${y1}" r="${selected?9:7}" fill="${color}" stroke="#fff" stroke-width="2"/><circle cx="${x1}" cy="${y1}" r="12" fill="none" stroke="${color}" stroke-width="2" stroke-opacity="${selected?1:.45}"/><circle cx="${x2}" cy="${y2}" r="6" fill="#101915" stroke="${color}" stroke-width="3"/></g>`);
+  }else if(a){const [x,y]=TOE_CITIES[a];markers.push(`<g class="toe-driver-marker" role="button" tabindex="0" aria-label="Mostrar viagem de ${toeEsc(t.motoristaNome||t.driver||'Motorista')}" onclick="selectToeMapTrip(${i})"><title>${toeEsc(t.motoristaNome||t.driver||'Motorista')}: ${toeEsc(origin)} → ${toeEsc(dest)}</title><circle cx="${x}" cy="${y}" r="7" fill="${color}" stroke="#fff" stroke-width="2"/></g>`);}
+  cards.push(`<div class="map-trip ${selected?'selected':''}" role="button" tabindex="0" onclick="selectToeMapTrip(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectToeMapTrip(${i})}"><strong><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${color};margin-right:6px"></span>${toeEsc(origin||'Origem não informada')} → ${toeEsc(dest||'Destino não informado')}</strong><small>Motorista: ${toeEsc(t.motoristaNome||t.driver||'Motorista')} · ${toeEsc(t.tipoCarga||t.type||'Carga')}</small><small style="display:block;margin-top:5px;color:${color}">${selected?'Rota destacada no mapa':'Toque para mostrar a rota'}</small>${(!a||!b)?'<small style="display:block;color:#e5c778;margin-top:4px">Cidade não reconhecida no mapa; confira a grafia registrada.</small>':''}</div>`);
+ });
+ overlay.innerHTML=paths.join('')+markers.join('');list.innerHTML=cards.join('');
+}
+async function refreshToeMap(){
+ const status=document.getElementById('toeMapStatus');if(!status)return;
+ try{
+  if(!cloudUser){toeMapActiveTrips=[];toeMapSelectedIndex=-1;drawToeMapTrips();status.textContent='Faça login para visualizar as cargas em andamento.';return;}
+  let active=[];
+  if(isAdmin())active=(cloudTrips||[]).filter(t=>t.status==='Em andamento');
+  else {const snap=await fbDb.collection('viagens').where('status','==','Em andamento').get();active=snap.docs.map(d=>({...d.data(),id:d.id}));}
+  toeMapActiveTrips=active.filter(t=>t.status==='Em andamento');
+  if(toeMapSelectedIndex>=toeMapActiveTrips.length)toeMapSelectedIndex=-1;
+  drawToeMapTrips();
+  status.textContent=toeMapActiveTrips.length?`${toeMapActiveTrips.length} carga(s) em andamento. Toque no marcador ou na viagem para destacar a rota.`:'Nenhuma carga em andamento. As viagens aparecem aqui após o registro de início.';
+  status.className=toeMapActiveTrips.length?'success':'notice';
  }catch(err){
   console.warn('Falha ao carregar mapa de cargas:',err);
-  // Mantém no mapa as viagens do próprio motorista caso as regras do Firestore restrinjam a leitura global.
-  active=(cloudTrips||[]).filter(t=>t.status==='Em andamento');
-  overlay.innerHTML='';list.innerHTML='';
+  toeMapActiveTrips=(cloudTrips||[]).filter(t=>t.status==='Em andamento');toeMapSelectedIndex=-1;drawToeMapTrips();
   status.className='notice';status.textContent='Não foi possível consultar as cargas de toda a equipe. Verifique as regras de leitura da coleção "viagens" no Firestore para permitir que usuários autenticados leiam os registros ativos.';
  }
 }
